@@ -98,51 +98,13 @@ if [[ "$CNI_COMMAND" == "ADD" ]]; then
   # -------------------------------- Process the host IP address.
 
   # Get the HOST ip address / mask.
-  hostipaddr=$(ip -f inet addr show $iface | awk '/inet/ {print $2}')
-  debuglog "IP Address: $hostipaddr"
-
-  # Calculate the gateway address.
-  # Use ipcalc to get the masked address.
-  gwnetworkaddress=$(ipcalc --network $hostipaddr | sed -E 's|^NETWORK=(.+)$|\1|')
-  # Get the slash value from the original IP
-  
-  # Now calculate the gateway itself. We'll add one to the last byte of the masked address.
-  # Save the first three octets.
-  gwmaskedfirstthreebytes=$(echo "$gwnetworkaddress" | sed -E 's|^(.+\.)([[:digit:]]+)$|\1|')
-  # Save the last octet.
-  gwmaskedlastbyte=$(echo "$gwnetworkaddress" | sed -E 's|^(.+\.)([[:digit:]]+)$|\2|')
-  # Add one to the last octet.
-  lastoctetplusone="$(($gwmaskedlastbyte + 1))"
-  # Combine the first three bytes with the last octet + 1.
-  gwcalculated=$(printf "$gwmaskedfirstthreebytes$lastoctetplusone")
-
-  # Debug output.
-  debuglog "GW Network Address: $gwnetworkaddress"
-  debuglog "GW gwmaskedfirstthreebytes: $gwmaskedfirstthreebytes"
-  debuglog "GW gwmaskedlastbyte: $gwmaskedlastbyte"
-  debuglog "GW lastoctetplusone: $lastoctetplusone"
-  debuglog "GW gwcalculated: $gwcalculated"
-  
-  # -------------------------------- Process the container IP address.
-
-  # Get the ip address inside the container
+  hostipaddr=$(ip -f inet addr show $iface | awk '/inet/ {print $2}' | awk -F "/" '{print $1}')
   ctripaddr=$(nsenter --net=$CNI_NETNS ip -f inet addr show $containerifname | awk '/inet/ {print $2}')
-  debuglog "Container IP Address: $ctripaddr"
-  # Now we convert that to a slash 32.
-  ctripaddrslash32=$(echo "$ctripaddr" | sed -E 's|^(.+)/.+$|\1/32|')
-  debuglog "GW ctripaddrslash32: $ctripaddrslash32"
-
+  ovngwip=$(ipcalc --minaddr $ctripaddr | awk -F "=" '{print $2}')
+  
   # -------------------------------- Set the static route.
-
-  debuglog "nsenter --net=$CNI_NETNS ip route add $gwcalculated/32 dev $containerifname"
-  debuglog "nsenter --net=$CNI_NETNS ip route add $ctripaddrslash32 via $gwcalculated"
-
-  # First we add a route for the calculated gateway on the primary interface.
-  nsenter --net=$CNI_NETNS ip route add $gwcalculated/32 dev $containerifname
-  exit_on_error $? !!
-
-  # Then we add the route itself to route the pods ip via the calculated gateway.
-  nsenter --net=$CNI_NETNS ip route add $ctripaddrslash32 via $gwcalculated
+  debuglog "nsenter --net=$CNI_NETNS ip route add $hostipaddr/32 via $ovngwip dev $containerifname"
+  nsenter --net=$CNI_NETNS ip route add $hostipaddr/32 via $ovngwip dev $containerifname
   exit_on_error $? !!
 
   cniresult

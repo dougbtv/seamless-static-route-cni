@@ -6,7 +6,7 @@ You call this... seamless!? Yup, because you don't need to cut up a bunch of oth
 
 ## Specification
 
-The "hosts IP address" is the IPv4 address of the hosts' primary interface, the interface is determined by the default route. A gateway address is calculated as taking the host IP address, masked off, and adding 1. Then, a static route is set in the pod's network namespace, to route the pod's IP address (as a /32) via the calculated gateway address.
+The "hosts IP address" is the IPv4 address of the hosts' primary interface, the interface is determined by the default route. A gateway address is calculated as taking the container's IP address and running `ipcalc --minaddr` to calculate a gateway address. Then a route is added to the container to route the host IP address (as a /32) via the calculated gateway address on the eth0 device.
 
 ## Requirements
 
@@ -57,19 +57,18 @@ spec:
 Now execute `ip route` in the pod, and you'll see a couple added routes:
 
 ```
-kubectl exec -it sampleseamless -- ip route
-default via 10.244.0.1 dev eth0 
-10.244.0.0/24 dev eth0 scope link  src 10.244.0.72 
-10.244.0.0/16 via 10.244.0.1 dev eth0 
-10.244.0.72 via 192.168.122.1 dev eth0 
-192.168.122.0/24 dev eth0 scope link 
+default via 10.131.0.1 dev eth0 
+10.0.32.2 via 10.131.0.1 dev eth0 
+10.128.0.0/14 dev eth0 
+10.131.0.0/23 dev eth0 scope link  src 10.131.0.43 
+172.30.0.0/16 via 10.131.0.1 dev eth0 
+224.0.0.0/4 dev eth0 
 ```
 
-`seamless-static-route` has added these routes:
+`seamless-static-route` has added this route:
 
 ```
-10.244.0.72 via 192.168.122.1 dev eth0 
-192.168.122.1 dev eth0 scope link 
+10.0.32.2 via 10.131.0.1 dev eth0 
 ```
 
 ## Debugging
