@@ -69,7 +69,7 @@ default via 10.244.0.1 dev eth0
 
 ```
 10.244.0.72 via 192.168.122.1 dev eth0 
-192.168.122.0/24 dev eth0 scope link 
+192.168.122.1 dev eth0 scope link 
 ```
 
 ## Debugging
