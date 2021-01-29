@@ -74,7 +74,9 @@ default via 10.244.0.1 dev eth0
 
 ## Debugging
 
-Add enviroment variables to the daemonset `DEBUG=true` and `LOGFILE=/var/log/seamless.log` to log output to a file.
+**TODO**: Add JSON parsing and make this parameterizable.
+
+`DEBUG=true` and `LOGFILE=/var/log/seamless.log` in the script.
 
 ## Development notes
 

@@ -9,5 +9,5 @@ spec:
   - name: sampleseamless
     command: ["/bin/ash", "-c", "trap : TERM INT; sleep infinity & wait"]
     image: alpine
-  nodeSelector:
-    debug: "true"
+#  nodeSelector:
+#    debug: "true"
