@@ -1,20 +1,25 @@
 # seamless-static-route-cni
 
-A static route CNI that is all-in-one tool for setting a static route based on a rule.
+A static route CNI that is all-in-one tool for setting a static route in a pod based on a gateway address calculated from the host's IP address.
+
+You call this... seamless!? Yup, because you don't need to cut up a bunch of other things in order to use it.
 
 ## Specification
 
-The rule on which the static route is created is as follows.
+The "hosts IP address" is the IPv4 address of the hosts' primary interface, the interface is determined by the default route. A gateway address is calculated as taking the host IP address, masked off, and adding 1. Then, a static route is set in the pod's network namespace, to route the pod's IP address (as a /32) via the calculated gateway address.
 
-**(TODO)**
-
-## Installation
-
-Copy `seamless-static-route.sh` to `/opt/cni/bin/seamless-static-route` (or whatever your CNI binary directory is) and `chmod +x` it, on every node.
+## Requirements
 
 This assumes the use of the `ipcalc` command, which is available on RHCOS nodes in OpenShift.
 
-**TODO**: This will be a daemonset install.
+## Installation
+
+Clone this repository and start the daemonset with the included yaml:
+
+```
+git clone https://github.com/dougbtv/seamless-static-route-cni.git
+kubectl create -f seamless-static-route-cni/daemonset.yml
+```
 
 ## Usage
 
@@ -67,11 +72,13 @@ default via 10.244.0.1 dev eth0
 192.168.122.0/24 dev eth0 scope link 
 ```
 
-Line 1: It routes the pod's IP address (as a /32) to a calculated gateway address (**TODO**: This goes in the rules/spec above)
+## Debugging
 
-Line 2: It has added the network of the host's primary IP (determined by first address on the network interface that has the default gateway to it)
+Add enviroment variables to the daemonset `DEBUG=true` and `LOGFILE=/var/log/seamless.log` to log output to a file.
 
 ## Development notes
+
+Because I kept copy/pasta'ing these.
 
 ```
 export CNI_PATH=/opt/cni/bin/

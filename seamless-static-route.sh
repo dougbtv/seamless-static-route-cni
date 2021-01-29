@@ -35,11 +35,21 @@ cniresult () {
 EOF
 }
 
+# Certain failures we want to exit on.
+exit_on_error() {
+    exit_code=$1
+    last_command=${@:2}
+    if [ $exit_code -ne 0 ]; then
+        >&2 echo "seamless-static-route: \"${last_command}\" command failed with exit code ${exit_code}."
+        cniresult
+        exit $exit_code
+    fi
+}
+
 # Overarching basic parameters.
 containerifname=eth0
 
 # --------------------------------------- REFERENCE: Common environment variables.
-debuglog "BEGIN ---------------------------------"
 debuglog "CNI method: $CNI_COMMAND"
 debuglog "CNI container id: $CNI_CONTAINERID"
 debuglog "CNI netns: $CNI_NETNS"
@@ -91,18 +101,10 @@ if [[ "$CNI_COMMAND" == "ADD" ]]; then
   hostipaddr=$(ip -f inet addr show $iface | awk '/inet/ {print $2}')
   debuglog "IP Address: $hostipaddr"
 
-  # You can fake out the host IP address here.
-  # debuglog "---------------- REMOVE THIS (fake ip for testing)"
-  # hostipaddr="192.168.2.15/16"
-  # debuglog "---------------- END REMOVE THIS (fake ip for testing)"
-
   # Calculate the gateway address.
   # Use ipcalc to get the masked address.
   gwnetworkaddress=$(ipcalc --network $hostipaddr | sed -E 's|^NETWORK=(.+)$|\1|')
   # Get the slash value from the original IP
-  slashvalue=$(echo "$hostipaddr" | sed -E 's|^(.+\.)([[:digit:]]+)/([[:digit:]]+)$|\3|')
-  # Combine the masked address and the slash
-  gwaddressrange=$(printf "$gwnetworkaddress/$slashvalue")
   
   # Now calculate the gateway itself. We'll add one to the last byte of the masked address.
   # Save the first three octets.
@@ -116,26 +118,11 @@ if [[ "$CNI_COMMAND" == "ADD" ]]; then
 
   # Debug output.
   debuglog "GW Network Address: $gwnetworkaddress"
-  debuglog "GW slashvalue: $slashvalue"
-  debuglog "GW gwaddressrange: $gwaddressrange"
   debuglog "GW gwmaskedfirstthreebytes: $gwmaskedfirstthreebytes"
   debuglog "GW gwmaskedlastbyte: $gwmaskedlastbyte"
   debuglog "GW lastoctetplusone: $lastoctetplusone"
   debuglog "GW gwcalculated: $gwcalculated"
   
-  # cheatsheet....
-  # ip route add {NETWORK/MASK} via {GATEWAYIP}
-  # ip route add {NETWORK/MASK} dev {DEVICE}
-  # ip route add default {NETWORK/MASK} dev {DEVICE}
-  # ip route add default {NETWORK/MASK} via {GATEWAYIP}
-
-  # REMOVE ME ---------------------------
-  # set a fake ip for the post for testing
-  # nsenter --net=$CNI_NETNS ip addr add 10.129.0.13/23 dev lo
-  # nsenter --net=$CNI_NETNS ip addr del 127.0.0.1/8 dev lo
-  # containerifname=lo
-  # end REMOVE ME ------------------------
-
   # -------------------------------- Process the container IP address.
 
   # Get the ip address inside the container
@@ -147,12 +134,16 @@ if [[ "$CNI_COMMAND" == "ADD" ]]; then
 
   # -------------------------------- Set the static route.
 
-  debuglog "nsenter --net=$CNI_NETNS ip route add $gwaddressrange dev $containerifname"
+  debuglog "nsenter --net=$CNI_NETNS ip route add $gwcalculated/32 dev $containerifname"
   debuglog "nsenter --net=$CNI_NETNS ip route add $ctripaddrslash32 via $gwcalculated"
-  nsenter --net=$CNI_NETNS ip route add $gwaddressrange dev $containerifname
-  nsenter --net=$CNI_NETNS ip route add $ctripaddrslash32 via $gwcalculated
 
-  debuglog "END ---------------------------------"
+  # First we add a route for the calculated gateway on the primary interface.
+  nsenter --net=$CNI_NETNS ip route add $gwcalculated/32 dev $containerifname
+  exit_on_error $? !!
+
+  # Then we add the route itself to route the pods ip via the calculated gateway.
+  nsenter --net=$CNI_NETNS ip route add $ctripaddrslash32 via $gwcalculated
+  exit_on_error $? !!
 
   cniresult
   exit 0

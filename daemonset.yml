@@ -1,0 +1,45 @@
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: seamless-static-route-cni
+  namespace: openshift-multus
+  annotations:
+    kubernetes.io/description: |
+      This daemon set installs the seamless-static-route-cni
+spec:
+  selector:
+    matchLabels:
+      app: seamless-static-route-cni
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: seamless-static-route-cni
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - operator: Exists
+      containers:
+      - name: kube-seamless-static-route-cni
+        image: quay.io/dougbtv/seamless-static-route-cni:latest
+        command: ["/bin/bash"]
+        args: ["-c", "cp -f /usr/src/seamless-static-route /host/opt/cni/bin/seamless-static-route; while true; do sleep 10; done"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 150Mi
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: cnibin
+          mountPath: /host/opt/cni/bin
+      volumes:
+        - name: cnibin
+          hostPath:
+            # OpenShift
+            path: "/var/lib/cni/bin"
+            # Upstream.
+            # path: "/opt/cni/bin"
