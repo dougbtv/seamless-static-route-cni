@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# DEBUG=true
+# LOGFILE=/tmp/seamless.log
+
 # Outputs errors to stderr
 errorlog () {
   >&2 echo $1
@@ -9,9 +12,11 @@ errorlog () {
 debuglog () {
   # Set DEBUG to anything to enable debug output.
   if [ -n "$DEBUG" ]; then
+    # touch /tmp/seamless_a
     # Set logfile if you want to log to a flat file.
-    if [ -n "$LOGFILE"]; then
-      echo $1 >> $LOGFILE
+    if [ -n "$LOGFILE" ]; then
+      # touch /tmp/seamless_b
+      echo $1 >> $LOGFILE.$CNI_CONTAINERID
     else
       # Otherwise, log to stderr.
       >&2 echo $1
@@ -99,13 +104,36 @@ if [[ "$CNI_COMMAND" == "ADD" ]]; then
 
   # Get the HOST ip address / mask.
   hostipaddr=$(ip -f inet addr show $iface | awk '/inet/ {print $2}' | awk -F "/" '{print $1}')
-  ctripaddr=$(nsenter --net=$CNI_NETNS ip -f inet addr show $containerifname | awk '/inet/ {print $2}')
+  debuglog "HOSTIP: $hostipaddr"
+
+  # Try to loop when ctr address is empty...
+  counter=0
+  while [ $counter -lt 10 ]; do
+    ctripaddr=$(nsenter --net=$CNI_NETNS ip -f inet addr show $containerifname | awk '/inet/ {print $2}')
+    debuglog "CTRIPADDR: >>$ctripaddr<<"
+    # ctrinspect=$(nsenter --net=$CNI_NETNS ip a)
+    # debuglog "INSPECT: $ctrinspect"
+    if [[ -n "$ctripaddr" ]]; then
+      debuglog "ctripaddr found: ${ctripaddr}"
+      break
+    fi
+    counter=$((counter+1))
+    sleep 1
+  done
+
+  if [ -z "$ctripaddr" ]; then
+    errorlog "ERROR seamless-static-route cni: container ip addr not found in $counter attempts"
+  fi
+
+
   ovngwip=$(ipcalc --minaddr $ctripaddr | awk -F "=" '{print $2}')
+  debuglog "OVNGWIP: $ovngwip"
   
   # -------------------------------- Set the static route.
   debuglog "nsenter --net=$CNI_NETNS ip route add $hostipaddr/32 via $ovngwip dev $containerifname"
-  nsenter --net=$CNI_NETNS ip route add $hostipaddr/32 via $ovngwip dev $containerifname
-  exit_on_error $? !!
+  output = $(nsenter --net=$CNI_NETNS ip route add $hostipaddr/32 via $ovngwip dev $containerifname)
+  debuglog "nsenter route add: $output - exitcode $?"
+  # exit_on_error $? !!
 
   cniresult
   exit 0
