@@ -1,0 +1,63 @@
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: multus-schmultus
+  # OpenShift (uncomment this)
+  # namespace: openshift-multus
+  annotations:
+    kubernetes.io/description: |
+      This daemon set installs the multus-schmultus binary which is an override of Multus CNI.
+spec:
+  selector:
+    matchLabels:
+      app: multus-schmultus
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: multus-schmultus
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - operator: Exists
+      containers:
+      - name: kube-multus-schmultus
+        image: dougbtv/multus-cni:schmultus
+        command:
+          - /bin/bash
+          - -c
+          - |
+            #!/bin/bash
+            copyit () {
+              echo "Copying schmultus binary @ $(date)"
+              cp -f /usr/src/multus-cni/bin/multus /host/opt/cni/bin/copying.multus
+              mv /host/opt/cni/bin/copying.multus /host/opt/cni/bin/multus
+            }
+            copyit
+            while true; do 
+              output=$(/host/opt/cni/bin/multus --version)
+              if [[ ${output} != *"schmultus"* ]]; then
+                copyit
+              fi
+              sleep 60;
+            done
+
+        resources:
+          requests:
+            cpu: 10m
+            memory: 150Mi
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: cnibin
+          mountPath: /host/opt/cni/bin
+      volumes:
+        - name: cnibin
+          hostPath:
+            # OpenShift
+            # path: "/var/lib/cni/bin"
+            # Upstream.
+            path: "/opt/cni/bin"

@@ -21,6 +21,16 @@ git clone https://github.com/dougbtv/seamless-static-route-cni.git
 kubectl create -f seamless-static-route-cni/daemonset.yml
 ```
 
+## Overwrite Multus when using istio-cni
+
+This installs an alternate version of Multus which listens on two different net-attach-defs. This code can be found in the [dougbtv/multus:schmultus](https://github.com/dougbtv/multus-cni/tree/schmultus) branch.
+
+Why schmultus? It's a smashed up Multus.
+
+```
+kubectl create -f seamless-static-route-cni/schmultus.yml
+```
+
 ## Usage
 
 Create a network attachment definition:
@@ -38,7 +48,7 @@ spec:
     }'
 ```
 
-Now create a pod that references it:
+Now create a pod that references it, note that this uses the **k8s.v1.cni.cncf.io/alternate-networks** -- which is for the overridden Multus.
 
 ```
 apiVersion: v1
@@ -46,7 +56,7 @@ kind: Pod
 metadata:
   name: sampleseamless
   annotations:
-    k8s.v1.cni.cncf.io/networks: seamless-conf
+    k8s.v1.cni.cncf.io/alternate-networks: seamless-conf
 spec:
   containers:
   - name: sampleseamless
