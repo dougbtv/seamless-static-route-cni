@@ -3,8 +3,7 @@ kind: DaemonSet
 apiVersion: apps/v1
 metadata:
   name: multus-schmultus
-  # OpenShift (uncomment this)
-  # namespace: openshift-multus
+  namespace: openshift-multus
   annotations:
     kubernetes.io/description: |
       This daemon set installs the multus-schmultus binary which is an override of Multus CNI.
@@ -25,7 +24,7 @@ spec:
       - operator: Exists
       containers:
       - name: kube-multus-schmultus
-        image: dougbtv/multus-cni:schmultus
+        image: quay.io/dougbtv/multus-cni:schmultus
         command:
           - /bin/bash
           - -c
@@ -58,6 +57,6 @@ spec:
         - name: cnibin
           hostPath:
             # OpenShift
-            # path: "/var/lib/cni/bin"
+            path: "/var/lib/cni/bin"
             # Upstream.
-            path: "/opt/cni/bin"
+            # path: "/opt/cni/bin"
