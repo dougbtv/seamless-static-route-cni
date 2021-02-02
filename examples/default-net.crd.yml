@@ -1,0 +1,31 @@
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: static-route-default-conf
+  namespace: kube-system
+spec:
+  config: '{
+  "name": "cbr0",
+  "cniVersion": "0.3.1",
+  "plugins": [
+    {
+      "type": "flannel",
+      "delegate": {
+        "hairpinMode": true,
+        "isDefaultGateway": true
+      }
+    },
+    {
+      "type": "portmap",
+      "capabilities": {
+        "portMappings": true
+      }
+    },
+    {
+      "cniVersion": "0.3.0",
+      "name": "example-seamless-static-route",
+      "type": "seamless-static-route"
+    }
+  ]
+}'
+

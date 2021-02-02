@@ -21,16 +21,6 @@ git clone https://github.com/dougbtv/seamless-static-route-cni.git
 kubectl create -f seamless-static-route-cni/daemonset.yml
 ```
 
-## Overwrite Multus when using istio-cni
-
-This installs an alternate version of Multus which listens on two different net-attach-defs. This code can be found in the [dougbtv/multus:schmultus](https://github.com/dougbtv/multus-cni/tree/schmultus) branch.
-
-Why schmultus? It's a smashed up Multus.
-
-```
-kubectl create -f seamless-static-route-cni/schmultus.yml
-```
-
 ## Usage
 
 Create a network attachment definition:
@@ -39,16 +29,34 @@ Create a network attachment definition:
 apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
 metadata:
-  name: seamless-conf
+  name: static-route-default-conf
+  namespace: kube-system
 spec:
   config: '{
+  "name": "static-route-default-conf",
+  "cniVersion": "0.3.1",
+  "plugins": [
+    {
+      "name":"ovn-kubernetes",
+      "type":"ovn-k8s-cni-overlay",
+      "ipam":{},
+      "dns":{},
+      "logFile":"/var/log/ovn-kubernetes/ovn-k8s-cni-overlay.log",
+      "logLevel":"4",
+      "logfile-maxsize":100,
+      "logfile-maxbackups":5,
+      "logfile-maxage":5
+    },
+    {
       "cniVersion": "0.3.0",
       "name": "example-seamless-static-route",
       "type": "seamless-static-route"
-    }'
+    }
+  ]
+}'
 ```
 
-Now create a pod that references it, note that this uses the **k8s.v1.cni.cncf.io/alternate-networks** -- which is for the overridden Multus.
+Now create a pod that references it, note that this uses the **v1.multus-cni.io/default-network** -- which is for the overridden Multus.
 
 ```
 apiVersion: v1
@@ -56,7 +64,7 @@ kind: Pod
 metadata:
   name: sampleseamless
   annotations:
-    k8s.v1.cni.cncf.io/alternate-networks: seamless-conf
+    v1.multus-cni.io/default-network: static-route-default-conf
 spec:
   containers:
   - name: sampleseamless
@@ -64,18 +72,7 @@ spec:
     image: alpine
 ```
 
-Now execute `ip route` in the pod, and you'll see a couple added routes:
-
-```
-default via 10.131.0.1 dev eth0 
-10.0.32.2 via 10.131.0.1 dev eth0 
-10.128.0.0/14 dev eth0 
-10.131.0.0/23 dev eth0 scope link  src 10.131.0.43 
-172.30.0.0/16 via 10.131.0.1 dev eth0 
-224.0.0.0/4 dev eth0 
-```
-
-`seamless-static-route` has added this route:
+Now execute `ip route` in the pod, and you'll see an additional route, `seamless-static-route` has added this route:
 
 ```
 10.0.32.2 via 10.131.0.1 dev eth0 
@@ -104,3 +101,4 @@ cat ~/cniconf/10-seamless.conf
     "type": "seamless-static-route"
 }
 ```
+

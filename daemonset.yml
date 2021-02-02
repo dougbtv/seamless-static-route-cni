@@ -24,7 +24,7 @@ spec:
       - operator: Exists
       containers:
       - name: kube-seamless-static-route-cni
-        image: quay.io/dougbtv/seamless-static-route-cni:latest
+        image: quay.io/dougbtv/seamless-static-route-cni:use-default
         command: ["/bin/bash"]
         args: ["-c", "cp -f /usr/src/seamless-static-route /host/opt/cni/bin/seamless-static-route; while true; do sleep 10; done"]
         resources:

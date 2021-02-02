@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Get all CNI input via stdin.
+cnistdin=$(cat -)
+
+# Set logging properties if need be.
 # DEBUG=true
 # LOGFILE=/tmp/seamless.log
 
@@ -27,17 +31,32 @@ debuglog () {
 # Outputs an essentially dummy CNI result that's borderline acceptable by the spec.
 # https://github.com/containernetworking/cni/blob/master/SPEC.md#result
 cniresult () {
-    cat << EOF
-{
-  "cniVersion": "1.0.0",
-  "interfaces": [
-      {
-          "name": "dummy-seamless-static-route"
-      }
-  ],
-  "ips": []
-}
+
+    # Check if it has prevResult
+    if [[ "$cnistdin" == *"prevResult"* ]]; then
+      # If so, then use the prevResult as our current result.
+      prevresult=$(echo $cnistdin| jq -cM .prevResult)
+      debuglog "Processed result from prevresult: $prevresult"
+      echo $prevresult
+    else
+      # Otherwise, just output a dummy.
+      debuglog "Outputting dummy JSON."
+      cat << EOF
+  {
+    "cniVersion": "1.0.0",
+    "interfaces": [
+        {
+            "name": "dummy-seamless-static-route"
+        }
+    ],
+    "ips": []
+  }
 EOF
+      
+    fi
+
+
+
 }
 
 # Certain failures we want to exit on.
@@ -46,7 +65,7 @@ exit_on_error() {
     last_command=${@:2}
     if [ $exit_code -ne 0 ]; then
         >&2 echo "seamless-static-route: \"${last_command}\" command failed with exit code ${exit_code}."
-        cniresult
+        # cniresult
         exit $exit_code
     fi
 }
@@ -58,14 +77,7 @@ containerifname=eth0
 debuglog "CNI method: $CNI_COMMAND"
 debuglog "CNI container id: $CNI_CONTAINERID"
 debuglog "CNI netns: $CNI_NETNS"
-
-# --------------------------------------- REFERENCE: Read config.
-# debuglog "-------------- Begin config"
-# while read line
-# do
-#   debuglog "$line"
-# done < /dev/stdin
-# debuglog "-------------- End config"
+debuglog "CNI stdin: $cnistdin"
 
 # We only operate on ADD command.
 if [[ "$CNI_COMMAND" == "ADD" ]]; then
